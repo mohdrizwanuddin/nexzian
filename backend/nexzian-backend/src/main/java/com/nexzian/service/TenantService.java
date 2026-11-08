@@ -27,9 +27,14 @@ public class TenantService {
 
     public TenantResponse registerTenant(TenantRequest request) {
 
-        if (tenantRepository.existsByEmail(request.getEmail())) {
+        if (tenantRepository.existsByEmailIgnoreCase(request.getEmail())) {
             throw new IllegalArgumentException(
                     "A tenant with this email already exists");
+        }
+
+        if (tenantRepository.existsByBusinessNameIgnoreCase(request.getBusinessName())) {
+            throw new IllegalArgumentException(
+                    "An agency with this business name already exists");
         }
 
         Tenant tenant = TenantMapper.toEntity(request);

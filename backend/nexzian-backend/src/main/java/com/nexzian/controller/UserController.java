@@ -11,7 +11,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.nexzian.dto.UserRequest;
 import com.nexzian.dto.UserResponse;
 import com.nexzian.dto.TeamMemberRequest;
 import com.nexzian.dto.TeamMemberAccessRequest;
@@ -31,16 +30,6 @@ public class UserController {
     public UserController(UserService userService, UserRepository userRepository) {
         this.userService = userService;
         this.userRepository = userRepository;
-    }
-
-    // Register the first owner for a tenant
-    @PostMapping("/register")
-    public ResponseEntity<UserResponse> registerUser(
-            @Valid @RequestBody UserRequest request) {
-
-        UserResponse response = userService.registerUser(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     private UUID getAuthenticatedTenantId(UserDetails principal) {

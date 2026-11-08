@@ -4,20 +4,15 @@ package com.nexzian.controller;
 import java.util.List;
 import java.util.UUID;
 
-import jakarta.validation.Valid;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.nexzian.dto.TenantRequest;
 import com.nexzian.dto.TenantResponse;
 import com.nexzian.dto.PublicTenantResponse;
 import com.nexzian.entity.Tenant;
@@ -37,15 +32,6 @@ public class TenantController {
             UserRepository userRepository) {
         this.tenantService = tenantService;
         this.userRepository = userRepository;
-    }
-
-    @PostMapping
-    public ResponseEntity<TenantResponse> registerTenant(
-            @RequestBody @Valid TenantRequest request) {
-
-        TenantResponse response = tenantService.registerTenant(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping

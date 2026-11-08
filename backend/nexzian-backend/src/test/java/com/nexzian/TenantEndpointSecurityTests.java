@@ -164,7 +164,7 @@ class TenantEndpointSecurityTests {
     }
 
     @Test
-    void anonymousAgencyRegistrationStillWorks() throws Exception {
+    void legacyPublicTenantRegistrationEndpointIsNoLongerPublic() throws Exception {
         Cookie csrf = csrfCookie();
         mockMvc.perform(post("/api/v1/tenants")
                 .cookie(csrf)
@@ -172,14 +172,16 @@ class TenantEndpointSecurityTests {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"businessName\":\"Gamma Estates\",\"email\":\"gamma@example.com\","
                         + "\"phone\":\"9999999999\",\"city\":\"Hyderabad\",\"locality\":\"Gachibowli\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.websiteSlug").value("gamma-estates"));
+                .andExpect(status().isUnauthorized());
+
+        org.junit.jupiter.api.Assertions.assertFalse(
+                tenantRepository.existsByEmailIgnoreCase("gamma@example.com"));
     }
 
     // ---- PLATFORM_ADMIN cannot be obtained through registration ------------------
 
     @Test
-    void userRegistrationAlwaysAssignsOwnerEvenIfPlatformAdminIsRequested() throws Exception {
+    void legacyPublicUserRegistrationEndpointIsNoLongerPublic() throws Exception {
         Tenant emptyTenant = createTenant("Delta Props", "delta-props", "delta@example.com");
         Cookie csrf = csrfCookie();
 
@@ -190,8 +192,10 @@ class TenantEndpointSecurityTests {
                 .content("{\"tenantId\":\"" + emptyTenant.getId() + "\",\"fullName\":\"Mallory\","
                         + "\"email\":\"mallory@example.com\",\"password\":\"password-123\","
                         + "\"role\":\"PLATFORM_ADMIN\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.role").value("OWNER"));
+                .andExpect(status().isUnauthorized());
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                userRepository.findByEmail("mallory@example.com").isEmpty());
     }
 
     @Test

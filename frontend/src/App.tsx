@@ -19,10 +19,6 @@ interface LoginResponse {
   role: string;
 }
 
-interface TenantResponse {
-  id: string;
-}
-
 interface RegistrationForm {
   businessName: string;
   fullName: string;
@@ -244,18 +240,17 @@ function WorkspaceApp() {
     setRegistrationLoading(true);
 
     try {
-      const tenant = await apiRequest<TenantResponse>("/tenants", {
+      // One atomic call: the server creates the agency and its OWNER account together.
+      await apiRequest("/auth/register-agency", {
         method: "POST",
         body: JSON.stringify({
-          businessName: registrationForm.businessName.trim(), email: registrationForm.email.trim(),
-          phone: registrationForm.phone.trim(), city: registrationForm.city.trim(), locality: registrationForm.locality.trim(),
-        }),
-      });
-      await apiRequest("/users/register", {
-        method: "POST",
-        body: JSON.stringify({
-          tenantId: tenant.id, fullName: registrationForm.fullName.trim(),
-          email: registrationForm.email.trim(), password: registrationForm.password, role: "OWNER",
+          businessName: registrationForm.businessName.trim(),
+          fullName: registrationForm.fullName.trim(),
+          email: registrationForm.email.trim(),
+          password: registrationForm.password,
+          phone: registrationForm.phone.trim(),
+          city: registrationForm.city.trim(),
+          locality: registrationForm.locality.trim(),
         }),
       });
       setEmail(registrationForm.email.trim());

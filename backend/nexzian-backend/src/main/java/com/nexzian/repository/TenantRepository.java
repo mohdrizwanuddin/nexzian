@@ -16,6 +16,10 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByEmailIgnoreCase(String email);
+
+    boolean existsByBusinessNameIgnoreCase(String businessName);
+
     Optional<Tenant> findByWebsiteSlug(String websiteSlug);
 
     boolean existsByWebsiteSlug(String websiteSlug);

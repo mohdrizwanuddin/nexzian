@@ -81,11 +81,10 @@ public class SecurityConfig {
 
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // Agency registration is public; reading tenants is not.
-                .requestMatchers(HttpMethod.POST, "/api/v1/tenants").permitAll()
+                // Agency + first OWNER registration: the only public sign-up endpoint.
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register-agency").permitAll()
 
                 .requestMatchers(
-                    "/api/v1/users/register",
                     "/api/v1/auth/login",
                     "/api/v1/auth/logout",
                     "/api/v1/auth/refresh",
