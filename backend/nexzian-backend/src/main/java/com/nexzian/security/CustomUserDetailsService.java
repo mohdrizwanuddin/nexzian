@@ -12,9 +12,13 @@ import com.nexzian.repository.UserRepository;
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final TenantAccessPolicy tenantAccessPolicy;
 
-    public CustomUserDetailsService(UserRepository userRepository) {
+    public CustomUserDetailsService(
+            UserRepository userRepository,
+            TenantAccessPolicy tenantAccessPolicy) {
         this.userRepository = userRepository;
+        this.tenantAccessPolicy = tenantAccessPolicy;
     }
 
     @Override
@@ -30,7 +34,11 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .withUsername(user.getEmail())
                 .password(user.getPassword())
                 .authorities("ROLE_" + user.getRole())
-                .disabled(!"ACTIVE".equals(user.getStatus()))
+                // Disabled if the user is inactive OR their agency is not ACTIVE.
+                // The JWT filter refuses disabled users, so tokens issued before a
+                // suspension stop working immediately.
+                .disabled(!"ACTIVE".equals(user.getStatus())
+                        || !tenantAccessPolicy.isAllowed(user))
                 .build();
     }
 }

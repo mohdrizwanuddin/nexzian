@@ -24,8 +24,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import jakarta.servlet.http.Cookie;
 
 import com.nexzian.entity.Property;
+import com.nexzian.entity.Tenant;
 import com.nexzian.entity.User;
 import com.nexzian.repository.PropertyRepository;
+import com.nexzian.repository.TenantRepository;
 import com.nexzian.repository.UserRepository;
 import com.nexzian.security.JwtService;
 
@@ -36,6 +38,7 @@ class TenantIsolationIntegrationTests {
     @Autowired private MockMvc mockMvc;
     @Autowired private UserRepository userRepository;
     @Autowired private PropertyRepository propertyRepository;
+    @Autowired private TenantRepository tenantRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
 
@@ -48,9 +51,12 @@ class TenantIsolationIntegrationTests {
     void setUp() {
         propertyRepository.deleteAll();
         userRepository.deleteAll();
+        tenantRepository.deleteAll();
 
-        User agencyAUser = createOwner("agency-a@example.com", UUID.randomUUID());
-        agencyBUser = createOwner("agency-b@example.com", UUID.randomUUID());
+        // Users must belong to real, ACTIVE tenants: users whose tenant row is
+        // missing are denied by TenantAccessPolicy.
+        User agencyAUser = createOwner("agency-a@example.com", createTenant("Agency A").getId());
+        agencyBUser = createOwner("agency-b@example.com", createTenant("Agency B").getId());
         agencyAToken = jwtService.generateToken(agencyAUser);
         agencyAAgentToken = jwtService.generateToken(
                 createUser("agency-a-agent@example.com", agencyAUser.getTenantId(), "AGENT"));
@@ -163,6 +169,14 @@ class TenantIsolationIntegrationTests {
         mockMvc.perform(get("/api/v1/users/{id}", agencyBUser.getId())
                 .header("Authorization", "Bearer " + agencyAToken))
                 .andExpect(status().isNotFound());
+    }
+
+    private Tenant createTenant(String businessName) {
+        Tenant tenant = new Tenant();
+        tenant.setBusinessName(businessName);
+        tenant.setEmail(businessName.toLowerCase().replace(' ', '-') + "@tenant.example");
+        tenant.setWebsiteSlug(businessName.toLowerCase().replace(' ', '-'));
+        return tenantRepository.save(tenant);
     }
 
     private User createOwner(String email, UUID tenantId) {
