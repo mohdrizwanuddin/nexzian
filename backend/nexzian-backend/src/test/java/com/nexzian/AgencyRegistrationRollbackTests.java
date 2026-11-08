@@ -27,6 +27,7 @@ import com.nexzian.entity.User;
 import com.nexzian.repository.PropertyRepository;
 import com.nexzian.repository.TenantRepository;
 import com.nexzian.repository.UserRepository;
+import com.nexzian.security.RegistrationRateLimiter;
 
 import jakarta.servlet.http.Cookie;
 
@@ -47,10 +48,12 @@ class AgencyRegistrationRollbackTests {
     @Autowired private MockMvc mockMvc;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private PropertyRepository propertyRepository;
+    @Autowired private RegistrationRateLimiter registrationRateLimiter;
     @MockitoSpyBean private UserRepository userRepository;
 
     @BeforeEach
     void setUp() {
+        registrationRateLimiter.clearAll();
         Mockito.reset(userRepository);
         propertyRepository.deleteAll();
         userRepository.deleteAll();

@@ -30,6 +30,7 @@ import com.nexzian.repository.PropertyRepository;
 import com.nexzian.repository.TenantRepository;
 import com.nexzian.repository.UserRepository;
 import com.nexzian.security.JwtService;
+import com.nexzian.security.LoginAttemptLimiter;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -41,6 +42,7 @@ class TenantIsolationIntegrationTests {
     @Autowired private TenantRepository tenantRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
+    @Autowired private LoginAttemptLimiter loginAttemptLimiter;
 
     private String agencyAToken;
     private String agencyAAgentToken;
@@ -49,6 +51,7 @@ class TenantIsolationIntegrationTests {
 
     @BeforeEach
     void setUp() {
+        loginAttemptLimiter.clearAll();
         propertyRepository.deleteAll();
         userRepository.deleteAll();
         tenantRepository.deleteAll();

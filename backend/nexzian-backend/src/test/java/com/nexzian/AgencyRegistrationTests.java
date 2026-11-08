@@ -36,6 +36,8 @@ import com.nexzian.repository.PropertyRepository;
 import com.nexzian.repository.TenantRepository;
 import com.nexzian.repository.UserRepository;
 import com.nexzian.security.JwtService;
+import com.nexzian.security.LoginAttemptLimiter;
+import com.nexzian.security.RegistrationRateLimiter;
 
 import jakarta.servlet.http.Cookie;
 
@@ -52,9 +54,14 @@ class AgencyRegistrationTests {
     @Autowired private PropertyRepository propertyRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
+    @Autowired private LoginAttemptLimiter loginAttemptLimiter;
+    @Autowired private RegistrationRateLimiter registrationRateLimiter;
 
     @BeforeEach
     void setUp() {
+        // All MockMvc requests come from 127.0.0.1: start every test with empty counters.
+        loginAttemptLimiter.clearAll();
+        registrationRateLimiter.clearAll();
         propertyRepository.deleteAll();
         userRepository.deleteAll();
         tenantRepository.deleteAll();

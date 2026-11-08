@@ -36,6 +36,7 @@ import com.nexzian.repository.RefreshTokenRepository;
 import com.nexzian.repository.TenantRepository;
 import com.nexzian.repository.UserRepository;
 import com.nexzian.security.JwtService;
+import com.nexzian.security.LoginAttemptLimiter;
 
 import jakarta.servlet.http.Cookie;
 
@@ -58,6 +59,7 @@ class TenantSuspensionSecurityTests {
     @Autowired private RefreshTokenRepository refreshTokenRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
+    @Autowired private LoginAttemptLimiter loginAttemptLimiter;
 
     private Tenant tenantA;
     private Tenant tenantB;
@@ -68,6 +70,7 @@ class TenantSuspensionSecurityTests {
 
     @BeforeEach
     void setUp() {
+        loginAttemptLimiter.clearAll();
         propertyRepository.deleteAll();
         userRepository.deleteAll();
         tenantRepository.deleteAll();

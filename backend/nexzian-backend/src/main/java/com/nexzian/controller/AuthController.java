@@ -10,8 +10,10 @@ import org.springframework.web.bind.annotation.*;
 import com.nexzian.dto.LoginRequest;
 import com.nexzian.dto.LoginResponse;
 import com.nexzian.service.AuthService;
+import com.nexzian.security.ClientIp;
 import com.nexzian.service.AuthSession;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -36,9 +38,10 @@ public class AuthController {
     // User login
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
-            @Valid @RequestBody LoginRequest request) {
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest) {
 
-        AuthSession session = authService.login(request);
+        AuthSession session = authService.login(request, ClientIp.of(httpRequest));
 
         return ResponseEntity.ok()
                 .header("Set-Cookie", accessCookie(session.response().getToken(), tokenExpirationMs).toString())
