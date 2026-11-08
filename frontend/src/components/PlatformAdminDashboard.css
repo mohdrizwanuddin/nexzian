@@ -1,0 +1,24 @@
+.platform-admin { min-height: 100vh; background: #f5f7fa; color: #172338; font-family: Arial, sans-serif; }
+.platform-header { display: flex; align-items: center; justify-content: space-between; padding: 22px 7%; background: #142138; color: #fff; }
+.platform-header p, .platform-eyebrow { margin: 0; color: #d4ad60; font-size: 11px; font-weight: bold; letter-spacing: .13em; }
+.platform-header h1 { margin: 5px 0 0; color: #fff; font-family: Georgia, serif; font-size: 28px; font-weight: normal; }
+.platform-header button, .platform-intro button { padding: 10px 14px; border: 1px solid #b89552; background: transparent; color: #e4c57e; cursor: pointer; }
+.platform-content { max-width: 1350px; margin: auto; padding: 42px 7%; }
+.platform-intro { display: flex; align-items: end; justify-content: space-between; }
+.platform-intro h2 { margin: 8px 0; font-family: Georgia, serif; font-size: 32px; font-weight: normal; }
+.platform-intro span { color: #68778b; font-size: 14px; }.platform-intro button { color: #8a6628; }
+.platform-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 28px 0; }
+.platform-stats div { padding: 19px; border: 1px solid #e3e8ee; background: #fff; }
+.platform-stats span { display: block; color: #77869a; font-size: 11px; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; }
+.platform-stats strong { display: block; margin-top: 8px; color: #142138; font-family: Georgia, serif; font-size: 31px; font-weight: normal; }
+.platform-toolbar input { box-sizing: border-box; width: min(410px, 100%); padding: 13px 14px; border: 1px solid #dce3ea; font-size: 14px; }
+.platform-error { margin: 20px 0; padding: 13px; background: #fff2f1; color: #9b352d; }
+.platform-table-wrap { margin-top: 22px; border: 1px solid #e0e6ec; background: #fff; }
+.platform-table-heading { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid #e7ebf0; }
+.platform-table-heading h3 { margin: 0; font-size: 16px; }.platform-table-heading span { color: #78879a; font-size: 12px; }
+.platform-scroll { overflow-x: auto; }.platform-scroll table { width: 100%; min-width: 900px; border-collapse: collapse; }
+.platform-scroll th { padding: 13px; background: #f7f9fb; color: #748297; font-size: 10px; letter-spacing: .07em; text-align: left; text-transform: uppercase; }
+.platform-scroll td { padding: 14px 13px; border-top: 1px solid #ecf0f3; font-size: 13px; }.platform-scroll td strong,.platform-scroll td span { display: block; }.platform-scroll td span { margin-top: 4px; color: #77869a; font-size: 11px; }
+.platform-status { display: inline-block !important; padding: 5px 8px; border-radius: 12px; font-size: 10px !important; font-weight: bold; }.platform-status.active { background: #eaf7ef; color: #287145; }.platform-status.inactive { background: #fff0ef; color: #a44135; }
+.platform-empty { padding: 60px; color: #738197; text-align: center; }
+@media (max-width: 750px) { .platform-header,.platform-content { padding-left: 5%; padding-right: 5%; }.platform-intro { flex-direction: column; align-items: start; gap: 18px; }.platform-stats { grid-template-columns: repeat(2, 1fr); } }

@@ -1,0 +1,58 @@
+# Authentication tokens and secrets
+Agency A Token.txt
+Agency B Token.txt
+*Token*.txt
+.env
+.env.*
+!.env.example
+*.secret
+*.secrets
+secrets/
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+
+# Machine-specific application configuration (may contain credentials)
+/backend/nexzian-backend/src/main/resources/application.properties
+/backend/nexzian-backend/src/test/resources/application.properties
+
+# Local data, exports, and internal working material
+/uploads/
+/deliverables/
+/workspace/.metadata/
+/backend/*.zip
+/APIs Test using Windows PowerShell.txt
+/Complete Staus till now.txt
+/Nexzian_Backend_Project_Reference_FIXED.docx
+*.bak
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+
+# Java / Spring Boot
+target/
+build/
+bin/
+.gradle/
+*.class
+*.log
+
+# React / Node
+node_modules/
+dist/
+coverage/
+
+# IDE
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
