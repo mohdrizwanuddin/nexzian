@@ -81,8 +81,10 @@ public class SecurityConfig {
 
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                // Agency registration is public; reading tenants is not.
+                .requestMatchers(HttpMethod.POST, "/api/v1/tenants").permitAll()
+
                 .requestMatchers(
-                    "/api/v1/tenants",
                     "/api/v1/users/register",
                     "/api/v1/auth/login",
                     "/api/v1/auth/logout",
@@ -102,6 +104,14 @@ public class SecurityConfig {
                     HttpMethod.GET,
                     "/api/v1/public/**"
                 ).permitAll()
+
+                // Full tenant list: platform administrators only.
+                .requestMatchers(HttpMethod.GET, "/api/v1/tenants")
+                    .hasRole("PLATFORM_ADMIN")
+
+                // Single tenant record: role gate here, ownership check in TenantController.
+                .requestMatchers(HttpMethod.GET, "/api/v1/tenants/{id}")
+                    .hasAnyRole("OWNER", "PLATFORM_ADMIN")
 
                 .requestMatchers(
                     "/api/v1/admin/**"
