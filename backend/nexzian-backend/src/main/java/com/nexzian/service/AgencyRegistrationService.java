@@ -1,6 +1,5 @@
 package com.nexzian.service;
 
-import java.sql.SQLException;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -16,20 +15,22 @@ import com.nexzian.dto.TenantRequest;
 import com.nexzian.dto.TenantResponse;
 import com.nexzian.entity.User;
 import com.nexzian.repository.UserRepository;
+import com.nexzian.util.EmailNormalizer;
+import com.nexzian.util.SqlErrors;
 
 /**
  * Creates a new agency (tenant) and its first OWNER account in ONE transaction.
  * If any step fails, both inserts are rolled back, so no ownerless tenant remains.
  *
- * Email casing (current, intentional behaviour):
- *  - Registration treats emails as duplicates case-insensitively
- *    ("Owner@X.com" and "owner@x.com" are the same address).
- *  - The email is stored trimmed, in exactly the casing supplied.
- *  - Login is NOT case-insensitive: it matches the stored email exactly, so the
- *    owner must sign in with the casing used at registration. Login is deliberately
- *    unchanged here; see AgencyRegistrationTests.emailCasingBehaviour...
- *  - The database unique constraints are also case-sensitive, so a concurrent race
- *    between two casings of the same email is only guarded by the pre-check.
+ * Email identity (R4):
+ *  - The email is normalized once (trim + lowercase, Locale.ROOT; see EmailNormalizer) and the
+ *    SAME canonical value is used for the duplicate check, the tenant's contact email and the
+ *    owner's login email. "Owner@X.com" and "owner@x.com" are the same address everywhere.
+ *  - Login normalizes its input the same way, so the owner can sign in with any casing.
+ *  - Because every stored email is canonical (also enforced by a database CHECK), the database
+ *    unique constraints are effectively case-insensitive: a concurrent race between two casings
+ *    of one address makes the second insert fail, which is reported as a normal duplicate and
+ *    rolls back the whole registration (no orphan tenant).
  */
 @Service
 public class AgencyRegistrationService {
@@ -52,8 +53,10 @@ public class AgencyRegistrationService {
     @Transactional
     public AgencyRegistrationResponse registerAgency(AgencyRegistrationRequest request) {
 
-        String email = request.getEmail().trim();
+        String email = EmailNormalizer.normalizeForStorage(request.getEmail());
 
+        // Courtesy pre-check; IgnoreCase also covers a legacy mixed-case row on a database that
+        // has not been migrated yet. The unique constraints below are the real guarantee.
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new IllegalArgumentException(
                     "An account with this email already exists");
@@ -87,7 +90,7 @@ public class AgencyRegistrationService {
                     tenant.getBusinessName(), tenant.getWebsiteSlug(), email);
 
         } catch (DataIntegrityViolationException exception) {
-            if (isUniqueViolation(exception)) {
+            if (SqlErrors.isUniqueViolation(exception)) {
                 // Genuine duplicate (e.g. a concurrent registration won the race).
                 // Deliberately does not log the email or the database detail text.
                 log.warn("Agency registration rejected: unique constraint '{}' violated "
@@ -102,29 +105,9 @@ public class AgencyRegistrationService {
             // this is a server-side problem, so never report it as a duplicate.
             log.error("Agency registration failed with a non-unique integrity violation "
                     + "(SQLState {}) for business name '{}'",
-                    sqlState(exception), request.getBusinessName().trim(), exception);
+                    SqlErrors.sqlState(exception), request.getBusinessName().trim(), exception);
             throw exception;
         }
-    }
-
-    /** SQLState 23505 = unique_violation (PostgreSQL, and also H2 used in tests). */
-    private static final String UNIQUE_VIOLATION_SQL_STATE = "23505";
-
-    private static boolean isUniqueViolation(Throwable exception) {
-        return UNIQUE_VIOLATION_SQL_STATE.equals(sqlState(exception));
-    }
-
-    /** Walks the cause chain and returns the first SQLState found, or null. */
-    private static String sqlState(Throwable exception) {
-        Throwable current = exception;
-        for (int depth = 0; current != null && depth < 20; depth++) {
-            if (current instanceof SQLException sqlException
-                    && sqlException.getSQLState() != null) {
-                return sqlException.getSQLState();
-            }
-            current = current.getCause();
-        }
-        return null;
     }
 
     /** Walks the cause chain for Hibernate's constraint name, if it provides one. */

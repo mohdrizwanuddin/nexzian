@@ -26,6 +26,7 @@ import com.nexzian.repository.UserRepository;
 import com.nexzian.security.JwtService;
 import com.nexzian.security.LoginAttemptLimiter;
 import com.nexzian.security.TenantAccessPolicy;
+import com.nexzian.util.EmailNormalizer;
 
 @Service
 public class AuthService {
@@ -88,11 +89,15 @@ public class AuthService {
     @Transactional
     public AuthSession login(LoginRequest request, String clientIp) {
 
-        String limiterEmail = LoginAttemptLimiter.normalizeEmail(request.getEmail());
+        // One canonical form for BOTH the lockout counter and the account lookup, so "OWNER@X.com"
+        // and "owner@x.com" are the same account AND share one failed-attempt counter. All stored
+        // emails are canonical (entity setter + database CHECK), so an exact match on the
+        // normalized value finds the account regardless of how the user typed it.
+        String normalizedEmail = EmailNormalizer.normalize(request.getEmail());
         LoginAttemptLimiter.Attempt attempt =
-                loginAttemptLimiter.beginAttempt(limiterEmail, clientIp);
+                loginAttemptLimiter.beginAttempt(LoginAttemptLimiter.normalizeEmail(normalizedEmail), clientIp);
 
-        Optional<User> found = userRepository.findByEmail(request.getEmail());
+        Optional<User> found = userRepository.findByEmail(normalizedEmail);
 
         String hashToCheck = found.map(User::getPassword).orElse(DUMMY_PASSWORD_HASH);
         boolean passwordMatches = passwordMatches(request.getPassword(), hashToCheck);

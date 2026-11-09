@@ -56,6 +56,7 @@ import com.nexzian.repository.UserRepository;
 import com.nexzian.security.JwtService;
 import com.nexzian.security.LoginAttemptLimiter;
 import com.nexzian.security.RegistrationRateLimiter;
+import com.nexzian.security.TeamMemberCreationRateLimiter;
 
 import jakarta.servlet.http.Cookie;
 
@@ -92,6 +93,7 @@ abstract class AuthorizationTestSupport {
     @Autowired protected JwtService jwtService;
     @Autowired private LoginAttemptLimiter loginAttemptLimiter;
     @Autowired private RegistrationRateLimiter registrationRateLimiter;
+    @Autowired private TeamMemberCreationRateLimiter teamMemberCreationRateLimiter;
     @Autowired private DataSource dataSource;
 
     @Value("${nexzian.file.upload-dir}")
@@ -130,6 +132,8 @@ abstract class AuthorizationTestSupport {
 
         loginAttemptLimiter.clearAll();
         registrationRateLimiter.clearAll();
+        // Per-agency team-member creation counters live in memory and would leak between tests.
+        teamMemberCreationRateLimiter.clearAll();
         deleteAllImagesAndFiles();
         leadRepository.deleteAll();
         propertyRepository.deleteAll();

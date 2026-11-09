@@ -14,6 +14,7 @@ import com.nexzian.dto.TenantResponse;
 import com.nexzian.entity.Tenant;
 import com.nexzian.mapper.TenantMapper;
 import com.nexzian.repository.TenantRepository;
+import com.nexzian.util.EmailNormalizer;
 
 @Service
 @Transactional
@@ -27,7 +28,9 @@ public class TenantService {
 
     public TenantResponse registerTenant(TenantRequest request) {
 
-        if (tenantRepository.existsByEmailIgnoreCase(request.getEmail())) {
+        // Compare the canonical form (the Tenant entity stores the same canonical value).
+        // IgnoreCase additionally covers a legacy mixed-case row before the R4 migration.
+        if (tenantRepository.existsByEmailIgnoreCase(EmailNormalizer.normalizeForStorage(request.getEmail()))) {
             throw new IllegalArgumentException(
                     "A tenant with this email already exists");
         }

@@ -13,8 +13,34 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.Check;
+import org.hibernate.annotations.DialectOverride;
+import org.hibernate.dialect.PostgreSQLDialect;
+
+import com.nexzian.util.EmailNormalizer;
+
 @Entity
 @Table(name = "users")
+// Database-level email rules, defined once in EmailConstraints (read its comment for the portability
+// reasoning). Two rules: CANONICAL (trimmed + lowercase; declared on the column below) and
+// SUPPORTED ASCII (printable ASCII 0x21-0x7E only; declared here on the class). With the
+// case-sensitive unique constraint on email they make uniqueness effectively case-INSENSITIVE and
+// race-safe: "A@x.com" and "a@X.com" both become "a@x.com", the second insert fails with a unique
+// violation, and a direct write of "A@x.com" is refused outright.
+//
+// Why the ASCII rule is the ONLY class-level @Check: Hibernate consults @DialectOverride.Check only
+// when a class has a SINGLE @Check. With two @Check annotations (the repeated/container form) the
+// override is silently ignored and PostgreSQL would get the weaker portable expression - this was
+// found by GeneratedSchemaChecksTests, which inspects the DDL Hibernate generates. So:
+//  * every dialect (H2 tests) gets ASCII_PORTABLE, which covers the same characters;
+//  * PostgreSQL gets the EXACT production regex ASCII_POSTGRESQL (a fresh PostgreSQL schema
+//    created by Hibernate therefore carries the full rule, identical to a migrated database).
+// These annotations only shape NEW schemas. An existing PostgreSQL database gets the same
+// constraints from docs/r4-email-integrity-migration.sql, because ddl-auto=update never adds
+// checks to a table that already exists.
+@Check(name = "users_email_ascii_chk", constraints = EmailConstraints.ASCII_PORTABLE)
+@DialectOverride.Check(dialect = PostgreSQLDialect.class,
+        override = @Check(name = "users_email_ascii_chk", constraints = EmailConstraints.ASCII_POSTGRESQL))
 public class User {
 
     @Id
@@ -27,6 +53,9 @@ public class User {
     @Column(nullable = false, length = 150)
     private String fullName;
 
+    // CANONICAL rule (trimmed + lowercase) as a named column check: see the class comment for why it
+    // is declared here and not as a second class-level @Check.
+    @Check(name = "users_email_canonical_chk", constraints = EmailConstraints.CANONICAL)
     @Column(nullable = false, unique = true, length = 150)
     private String email;
 
@@ -86,8 +115,12 @@ public class User {
         return email;
     }
 
+    // Normalizing AND enforcing the supported-address policy at the entity boundary means no code
+    // path (present or future) can store a non-canonical or unsupported (non-ASCII, whitespace)
+    // email through JPA: it fails with UnsupportedEmailException before reaching the database. The
+    // services also normalize explicitly because they must compare the same value before saving.
     public void setEmail(String email) {
-        this.email = email;
+        this.email = EmailNormalizer.normalizeForStorage(email);
     }
 
     public String getPassword() {

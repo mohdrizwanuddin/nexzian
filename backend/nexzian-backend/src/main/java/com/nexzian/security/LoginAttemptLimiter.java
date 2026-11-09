@@ -2,7 +2,6 @@ package com.nexzian.security;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.util.Locale;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.nexzian.exception.TooManyLoginAttemptsException;
+import com.nexzian.util.EmailNormalizer;
 
 /**
  * Brute-force protection for login.
@@ -76,7 +76,10 @@ public class LoginAttemptLimiter {
 
     /** Trim + lowercase (Locale.ROOT): the same key for "Owner@X.com " and "owner@x.com". */
     public static String normalizeEmail(String email) {
-        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+        // Delegates to the platform-wide definition so the lockout key can never drift from the
+        // way accounts are looked up; null becomes "" so it still forms a valid map key.
+        String normalized = EmailNormalizer.normalize(email);
+        return normalized == null ? "" : normalized;
     }
 
     /** Reserves an attempt, or throws if the email+IP or the IP is locked. */

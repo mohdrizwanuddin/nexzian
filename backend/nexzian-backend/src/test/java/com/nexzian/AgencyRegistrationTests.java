@@ -114,34 +114,38 @@ class AgencyRegistrationTests {
                 .andExpect(status().isOk());
     }
 
-    // ---- Email casing: documents CURRENT behaviour --------------------------------
+    // ---- Email identity (R4): canonical lowercase everywhere ---------------------------
 
     /**
-     * Documents (and pins) today's intentional behaviour:
-     *  - registration stores the email in exactly the casing supplied;
-     *  - registration treats other casings of that email as duplicates;
-     *  - login is case-sensitive and unchanged, so it needs the registered casing.
-     * If login is ever made case-insensitive, change the last assertion deliberately.
+     * Pins the R4 contract, which replaced the earlier "stored as typed, login case-sensitive"
+     * behaviour:
+     *  - registration stores the email trimmed and lowercase (user AND tenant);
+     *  - other casings of that email are duplicates;
+     *  - login is case-insensitive, so the owner can sign in with any casing.
+     * Why it matters: login identifies people globally by email; two spellings of one address
+     * must never be two accounts, and users must not be locked out by their own capitalization.
      */
     @Test
-    void emailCasingBehaviourRegistrationIsCaseInsensitiveButLoginIsCaseSensitive() throws Exception {
+    void emailIsStoredCanonicallyAndLoginIsCaseInsensitive() throws Exception {
         register(body("Casing Realty", "Owner@Casing.Example", PASSWORD))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.email").value("Owner@Casing.Example"));
+                .andExpect(jsonPath("$.email").value("owner@casing.example"));
 
-        // Stored exactly as supplied.
-        assertEquals("Owner@Casing.Example",
+        // Stored in canonical form, for the owner and for the agency's contact email.
+        assertEquals("owner@casing.example",
                 userRepository.findAll().get(0).getEmail());
+        assertEquals("owner@casing.example",
+                tenantRepository.findAll().get(0).getEmail());
 
         // Other casings are rejected as duplicates at registration.
-        register(body("Another Agency", "owner@casing.example", PASSWORD))
+        register(body("Another Agency", "OWNER@casing.example", PASSWORD))
                 .andExpect(status().isConflict());
         assertEquals(1, userRepository.count());
 
-        // Login with the exact registered casing works...
+        // Login works with the canonical form and with any other casing.
+        login("owner@casing.example").andExpect(status().isOk());
         login("Owner@Casing.Example").andExpect(status().isOk());
-        // ...but login with a different casing does not (unchanged, case-sensitive).
-        login("owner@casing.example").andExpect(status().isUnauthorized());
+        login("OWNER@CASING.EXAMPLE").andExpect(status().isOk());
     }
 
     // ---- Privilege escalation attempts -------------------------------------------

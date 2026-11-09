@@ -1,5 +1,7 @@
 package com.nexzian.dto;
 
+import com.nexzian.validation.AsciiEmail;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -22,6 +24,7 @@ public class AgencyRegistrationRequest {
 
     @NotBlank(message = "Email is required")
     @Email(message = "Please provide a valid email address")
+    @AsciiEmail
     @Size(max = 150, message = "Email cannot exceed 150 characters")
     private String email;
 

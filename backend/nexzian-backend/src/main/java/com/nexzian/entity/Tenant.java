@@ -13,8 +13,22 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.Check;
+import org.hibernate.annotations.DialectOverride;
+import org.hibernate.dialect.PostgreSQLDialect;
+
+import com.nexzian.util.EmailNormalizer;
+
 @Entity
 @Table(name = "tenants")
+// Database-level email rules for the agency's contact address: the same two rules, definitions and
+// PostgreSQL override as User (see the long comment there and EmailConstraints). The ASCII rule must
+// stay the only class-level @Check so that the PostgreSQL override is honoured; the canonical rule is
+// declared on the email column. Existing PostgreSQL tables get both from
+// docs/r4-email-integrity-migration.sql.
+@Check(name = "tenants_email_ascii_chk", constraints = EmailConstraints.ASCII_PORTABLE)
+@DialectOverride.Check(dialect = PostgreSQLDialect.class,
+        override = @Check(name = "tenants_email_ascii_chk", constraints = EmailConstraints.ASCII_POSTGRESQL))
 public class Tenant {
 
     @Id
@@ -27,6 +41,9 @@ public class Tenant {
     @Column(name = "website_slug", unique = true, length = 150)
     private String websiteSlug;
 
+    // CANONICAL rule (trimmed + lowercase) as a named column check: see the class comment for why it
+    // is declared here and not as a second class-level @Check.
+    @Check(name = "tenants_email_canonical_chk", constraints = EmailConstraints.CANONICAL)
     @Column(nullable = false, unique = true, length = 150)
     private String email;
 
@@ -90,8 +107,10 @@ public class Tenant {
         return email;
     }
 
+    // Same canonical-email rule as User (see EmailNormalizer); a tenant's email is the agency's
+    // contact address and is unique across agencies.
     public void setEmail(String email) {
-        this.email = email;
+        this.email = EmailNormalizer.normalizeForStorage(email);
     }
 
     public String getPhone() {

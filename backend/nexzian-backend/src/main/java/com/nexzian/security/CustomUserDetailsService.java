@@ -7,6 +7,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import com.nexzian.repository.UserRepository;
+import com.nexzian.util.EmailNormalizer;
 
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
@@ -25,7 +26,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email)
             throws UsernameNotFoundException {
 
-        com.nexzian.entity.User user = userRepository.findByEmail(email)
+        com.nexzian.entity.User user = userRepository.findByEmail(EmailNormalizer.normalize(email))
                 .orElseThrow(() ->
                         new UsernameNotFoundException(
                                 "User not found: " + email));

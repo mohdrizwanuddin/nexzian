@@ -16,6 +16,7 @@ import com.nexzian.dto.TeamMemberRequest;
 import com.nexzian.dto.TeamMemberAccessRequest;
 import com.nexzian.entity.User;
 import com.nexzian.repository.UserRepository;
+import com.nexzian.security.TeamMemberCreationRateLimiter;
 import com.nexzian.service.UserService;
 
 import jakarta.validation.Valid;
@@ -27,9 +28,15 @@ public class UserController {
     private final UserService userService;
     private final UserRepository userRepository;
 
-    public UserController(UserService userService, UserRepository userRepository) {
+    private final TeamMemberCreationRateLimiter teamMemberCreationRateLimiter;
+
+    public UserController(
+            UserService userService,
+            UserRepository userRepository,
+            TeamMemberCreationRateLimiter teamMemberCreationRateLimiter) {
         this.userService = userService;
         this.userRepository = userRepository;
+        this.teamMemberCreationRateLimiter = teamMemberCreationRateLimiter;
     }
 
     private UUID getAuthenticatedTenantId(UserDetails principal) {
@@ -64,8 +71,16 @@ public class UserController {
     public ResponseEntity<UserResponse> createTeamMember(
             @Valid @RequestBody TeamMemberRequest request,
             @AuthenticationPrincipal UserDetails principal) {
+
+        // The tenant comes from the authenticated user's own record, never from the request.
+        UUID tenantId = getAuthenticatedTenantId(principal);
+
+        // Rate limit FIRST, before any email lookup, and count successes and failures alike:
+        // see TeamMemberCreationRateLimiter for why (account-enumeration protection).
+        teamMemberCreationRateLimiter.checkAndRecord(tenantId);
+
         return ResponseEntity.status(HttpStatus.CREATED).body(
-                userService.createTeamMember(getAuthenticatedTenantId(principal), request));
+                userService.createTeamMember(tenantId, request));
     }
 
     @PutMapping("/{userId}/access")

@@ -69,6 +69,39 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    // An email outside the supported-address policy that got past request validation (internal
+    // call): 400 with the fixed policy sentence. Declared separately because the broader
+    // IllegalArgumentException handler below would answer 409.
+    @ExceptionHandler(UnsupportedEmailException.class)
+    public ResponseEntity<Map<String, Object>> handleUnsupportedEmail(
+            UnsupportedEmailException exception) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.BAD_REQUEST.value());
+        response.put("error", "Bad Request");
+        response.put("message", exception.getMessage());
+
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    // Email already registered (any agency, any casing, or a lost race): ALWAYS the same generic
+    // 409 body so the answer cannot be used to find out which addresses have accounts.
+    @ExceptionHandler(EmailUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleEmailUnavailable(
+            EmailUnavailableException exception) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.CONFLICT.value());
+        response.put("error", "Conflict");
+        response.put("message", exception.getMessage());
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
     // Modifying an archived property: 409 with a clear, safe message (the message is a fixed
     // string from PropertyArchivedException, never user data).
     @ExceptionHandler(PropertyArchivedException.class)
