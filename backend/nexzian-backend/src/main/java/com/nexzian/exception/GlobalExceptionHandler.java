@@ -69,6 +69,22 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    // Modifying an archived property: 409 with a clear, safe message (the message is a fixed
+    // string from PropertyArchivedException, never user data).
+    @ExceptionHandler(PropertyArchivedException.class)
+    public ResponseEntity<Map<String, Object>> handlePropertyArchived(
+            PropertyArchivedException exception) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.CONFLICT.value());
+        response.put("error", "Conflict");
+        response.put("message", exception.getMessage());
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(
             IllegalArgumentException exception) {

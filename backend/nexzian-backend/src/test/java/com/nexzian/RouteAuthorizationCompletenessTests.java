@@ -125,6 +125,9 @@ class RouteAuthorizationCompletenessTests extends AuthorizationTestSupport {
             route("GET", "/api/v1/properties/{id}", Access.OWNER),
             route("PUT", "/api/v1/properties/{id}", Access.OWNER),
             route("DELETE", "/api/v1/properties/{id}", Access.OWNER),
+            // R3 archive lifecycle: DELETE above archives; these two list / restore archived ones.
+            route("GET", "/api/v1/properties/archived", Access.OWNER),
+            route("POST", "/api/v1/properties/{id}/restore", Access.OWNER),
             route("GET", "/api/v1/properties/{propertyId}/images", Access.OWNER),
             route("POST", "/api/v1/properties/{propertyId}/images", Access.OWNER),
             route("GET", "/api/v1/properties/{propertyId}/images/{imageId}/file", Access.OWNER),

@@ -20,6 +20,7 @@ import com.nexzian.dto.PropertyImageResponse;
 import com.nexzian.dto.PublicPropertyImageResponse;
 import com.nexzian.entity.Property;
 import com.nexzian.entity.PropertyImage;
+import com.nexzian.exception.PropertyArchivedException;
 import com.nexzian.repository.PropertyImageRepository;
 import com.nexzian.repository.PropertyRepository;
 
@@ -63,7 +64,8 @@ public class PropertyImageService {
             UUID tenantId,
             MultipartFile file) {
 
-        Property property = verifyPropertyOwnership(propertyId, tenantId);
+        // Mutation: the property must exist in this tenant AND not be archived.
+        Property property = verifyActivePropertyOwnership(propertyId, tenantId);
 
         validateImage(file);
 
@@ -181,7 +183,8 @@ public class PropertyImageService {
             UUID imageId,
             UUID tenantId) {
 
-        verifyPropertyOwnership(propertyId, tenantId);
+        // Mutation: images of an archived property are frozen until it is restored.
+        verifyActivePropertyOwnership(propertyId, tenantId);
 
         PropertyImage selectedImage =
                 findImage(propertyId, imageId, tenantId);
@@ -207,6 +210,10 @@ public class PropertyImageService {
             UUID imageId,
             UUID tenantId) {
 
+        // Mutation: removing an image (row + file) from an archived property is blocked, so
+        // archiving really preserves the images exactly as they were.
+        verifyActivePropertyOwnership(propertyId, tenantId);
+
         PropertyImage image =
                 findImage(propertyId, imageId, tenantId);
 
@@ -231,9 +238,9 @@ public class PropertyImageService {
             UUID tenantId,
             String websiteSlug) {
 
-        // Only published properties can expose images publicly.
+        // Only published AND non-archived properties can expose images publicly.
         propertyRepository
-                .findByIdAndTenantIdAndStatus(
+                .findByIdAndTenantIdAndStatusAndDeletedAtIsNull(
                         propertyId, tenantId, "PUBLISHED")
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Published property not found"));
@@ -274,9 +281,11 @@ public class PropertyImageService {
             UUID tenantId) {
 
         // Verify that the property belongs to this agency
-        // and is published before exposing its image.
+        // and is published and not archived before exposing its image. The archive check is
+        // what makes an archived property's image URLs return 404 even though the file is
+        // deliberately kept on disk.
         propertyRepository
-                .findByIdAndTenantIdAndStatus(
+                .findByIdAndTenantIdAndStatusAndDeletedAtIsNull(
                         propertyId, tenantId, "PUBLISHED")
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Published property not found"));
@@ -294,6 +303,21 @@ public class PropertyImageService {
                         imageId, propertyId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Property image not found"));
+    }
+
+    // Ownership check for image mutations: the property must belong to the tenant and must not
+    // be archived (PropertyArchivedException -> 409).
+    private Property verifyActivePropertyOwnership(
+            UUID propertyId,
+            UUID tenantId) {
+
+        Property property = verifyPropertyOwnership(propertyId, tenantId);
+
+        if (property.isArchived()) {
+            throw new PropertyArchivedException();
+        }
+
+        return property;
     }
 
     private Property verifyPropertyOwnership(

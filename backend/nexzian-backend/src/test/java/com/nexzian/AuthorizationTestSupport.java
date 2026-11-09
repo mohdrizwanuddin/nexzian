@@ -479,7 +479,12 @@ abstract class AuthorizationTestSupport {
                 p.getDescription(), p.getTransactionType(), p.getPropertyCategory(), p.getPropertyType(),
                 p.getCity(), String.valueOf(p.getLocality()), String.valueOf(p.getPrice()),
                 String.valueOf(p.getAreaSqft()), String.valueOf(p.getBedrooms()),
-                String.valueOf(p.getBathrooms()), p.getStatus(), String.valueOf(p.getUpdatedAt()));
+                String.valueOf(p.getBathrooms()), p.getStatus(), String.valueOf(p.getUpdatedAt()),
+                // Archive fields (R3). DELETE now archives instead of removing the row, so the
+                // row COUNT no longer reveals a wrongly allowed delete; without these two
+                // values a forbidden archive/restore would leave every "nothing changed"
+                // assertion green.
+                String.valueOf(p.getDeletedAt()), String.valueOf(p.getDeletedBy()));
     }
 
     protected String leadSnapshot(UUID id) {

@@ -76,7 +76,11 @@ class RoleAuthorizationMatrixTests extends AuthorizationTestSupport {
                 new Route("POST /properties", t -> post("/api/v1/properties", t, propertyJson("New", "DRAFT"))),
                 new Route("GET /properties/{id}", t -> get("/api/v1/properties/{id}", t, p)),
                 new Route("PUT /properties/{id}", t -> put("/api/v1/properties/{id}", t, propertyJson("Edit", "DRAFT"), p)),
+                // DELETE ARCHIVES (R3). Row counts do not change when archiving, so a wrongly allowed
+                // archive/restore is caught by the archive fields in the property snapshot.
                 new Route("DELETE /properties/{id}", t -> delete("/api/v1/properties/{id}", t, p)),
+                new Route("GET /properties/archived", t -> get("/api/v1/properties/archived", t)),
+                new Route("POST /properties/{id}/restore", t -> post("/api/v1/properties/{id}/restore", t, null, p)),
                 new Route("GET /properties/{id}/images", t -> get("/api/v1/properties/{id}/images", t, p)),
                 new Route("POST /properties/{id}/images", t -> upload(t, p, "x.png")),
                 new Route("GET /properties/{id}/images/{img}/file",
@@ -348,18 +352,10 @@ class RoleAuthorizationMatrixTests extends AuthorizationTestSupport {
     void ownerIsNeverDeniedByAuthorizationOnItsOwnBusinessRoutes() throws Exception {
         List<String> denied = new ArrayList<>();
         for (Route route : ownerBusinessRoutes()) {
-            int status;
-            try {
-                status = route.call().with(ownerAToken).andReturn().getResponse().getStatus();
-            } catch (jakarta.servlet.ServletException reachedTheApplicationAndFailed) {
-                // The request got past authorization and failed inside the application. Known case:
-                // DELETE /properties/{id} when the property has images throws a foreign-key error
-                // (S6 finding M3, tracked by the @Disabled test in CrossTenantImageTests). That is
-                // not an authorization denial, which is all this control checks.
-                status = 500;
-            }
-            // 404 is fine here (an earlier route in the loop may have deleted the record);
-            // 401/403 would mean the OWNER is wrongly blocked.
+            int status = route.call().with(ownerAToken).andReturn().getResponse().getStatus();
+            // 404/409 are fine here (an earlier route in the loop may have deleted a lead or
+            // archived the property, which later routes then refuse); 401/403 would mean the
+            // OWNER is wrongly blocked, which is all this control checks.
             if (status == 401 || status == 403) {
                 denied.add(route.name() + " -> " + status);
             }

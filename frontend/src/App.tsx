@@ -49,11 +49,19 @@ interface Property {
   bathrooms?: number;
   createdAt?: string;
   updatedAt?: string;
+  // Set by the backend only for archived (soft-deleted) properties.
+  deletedAt?: string | null;
 }
 
 interface Lead {
   id: string;
   propertyId?: string | null;
+  // Resolved by the backend so the original property title survives archiving.
+  propertyTitle?: string | null;
+  propertyArchived?: boolean | null;
+  // true when the linked property no longer exists at all (deleted before archiving existed);
+  // different from archived, which can be restored.
+  propertyMissing?: boolean | null;
   customerName: string;
   email?: string | null;
   phone: string;
@@ -162,6 +170,9 @@ function WorkspaceApp() {
   const [successMessage, setSuccessMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  // "active" = normal portfolio, "archived" = soft-deleted properties that can be restored.
+  const [propertyView, setPropertyView] = useState<"active" | "archived">("active");
+  const [archivedProperties, setArchivedProperties] = useState<Property[]>([]);
   const [showPropertyForm, setShowPropertyForm] = useState(false);
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(
     null
@@ -274,6 +285,13 @@ function WorkspaceApp() {
     setPassword("");
     setError("");
     setProperties([]);
+    // The archived list and the selected tab belong to the signed-out agency. Without this the
+    // next user (another agency, same browser tab, no reload) would land on the Archived tab
+    // still showing the previous agency's archived properties.
+    setArchivedProperties([]);
+    setPropertyView("active");
+    setSearchTerm("");
+    setStatusFilter("ALL");
     setLeads([]);
     setTeamMembers([]);
   };
@@ -283,6 +301,12 @@ function WorkspaceApp() {
     localStorage.removeItem("nexzianSessionMode");
     setUser(null);
     setProperties([]);
+    // Same reset as handleLogout: an expired session must not leave this agency's archived
+    // properties or the Archived tab visible to whoever signs in next.
+    setArchivedProperties([]);
+    setPropertyView("active");
+    setSearchTerm("");
+    setStatusFilter("ALL");
     setLeads([]);
     setTeamMembers([]);
     setError("Your session has expired. Please sign in again.");
@@ -304,6 +328,26 @@ function WorkspaceApp() {
           : err instanceof Error
             ? err.message
             : "Unable to load properties."
+      );
+    } finally {
+      setPropertiesLoading(false);
+    }
+  };
+
+  // Archived properties live behind their own endpoint (owner only); the active list never
+  // contains them, so the two views are loaded and refreshed independently.
+  const loadArchivedProperties = async () => {
+    if (!user) return;
+
+    setPropertiesLoading(true);
+    setPropertyError("");
+
+    try {
+      const data = await apiRequest<Property[]>("/properties/archived");
+      setArchivedProperties(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setPropertyError(
+        err instanceof Error ? err.message : "Unable to load archived properties."
       );
     } finally {
       setPropertiesLoading(false);
@@ -507,7 +551,10 @@ function WorkspaceApp() {
   const filteredProperties = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
 
-    return properties.filter((property) => {
+    // Search and status filters apply to whichever view (active / archived) is shown.
+    const source = propertyView === "archived" ? archivedProperties : properties;
+
+    return source.filter((property) => {
       const matchesSearch =
         !search ||
         property.title.toLowerCase().includes(search) ||
@@ -519,7 +566,7 @@ function WorkspaceApp() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [properties, searchTerm, statusFilter]);
+  }, [properties, archivedProperties, propertyView, searchTerm, statusFilter]);
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat("en-IN", {
@@ -614,9 +661,14 @@ function WorkspaceApp() {
     }
   };
 
-  const deleteProperty = async (property: Property) => {
+  // "Delete" is now an archive: the backend hides the property and keeps its photos and leads,
+  // so the wording must promise exactly that (and that it can be undone).
+  const archiveProperty = async (property: Property) => {
     const confirmed = window.confirm(
-      `Are you sure you want to delete "${property.title}"?`
+      `Archive "${property.title}"?\n\n` +
+        "It will be hidden from your property list and your public website. " +
+        "Its photos and any leads linked to it are kept, and you can restore it " +
+        "later from Archived properties."
     );
 
     if (!confirmed) return;
@@ -625,13 +677,40 @@ function WorkspaceApp() {
     setSuccessMessage("");
 
     try {
+      // The endpoint is still DELETE /properties/{id}; the server archives instead of deleting.
       await apiRequest(`/properties/${property.id}`, { method: "DELETE" });
 
-      setSuccessMessage("Property deleted successfully.");
-      await loadProperties();
+      setSuccessMessage("Property archived. You can restore it from Archived properties.");
+      // Lead cards show the linked property's archived state, so refresh them too. Started
+      // together so one loader cannot clear another's error (see restoreProperty).
+      await Promise.all([loadProperties(), loadLeads()]);
     } catch (err) {
       setPropertyError(
-        err instanceof Error ? err.message : "Unable to delete property."
+        err instanceof Error ? err.message : "Unable to archive property."
+      );
+    }
+  };
+
+  // Restore only brings the property back to the active list with its previous status; it does
+  // NOT publish it. A property that was a draft is still a draft afterwards.
+  const restoreProperty = async (property: Property) => {
+    setPropertyError("");
+    setSuccessMessage("");
+
+    try {
+      await apiRequest(`/properties/${property.id}/restore`, { method: "POST" });
+
+      setSuccessMessage(
+        `"${property.title}" restored. It keeps its previous status (${property.status}).`
+      );
+      // Started together on purpose: each loader clears propertyError when it STARTS, so running
+      // them one after another let a later loader wipe the error of an earlier one that failed
+      // (the user would see a success banner and a stale list with no error). Together, all the
+      // clears happen first and any failure that follows stays visible.
+      await Promise.all([loadArchivedProperties(), loadProperties(), loadLeads()]);
+    } catch (err) {
+      setPropertyError(
+        err instanceof Error ? err.message : "Unable to restore property."
       );
     }
   };
@@ -648,6 +727,10 @@ function WorkspaceApp() {
     const draftCount = properties.filter(
       (property) => property.status === "DRAFT"
     ).length;
+
+    // Number of properties in the currently selected view (active / archived), used by the
+    // empty-state text. Dashboard counts above intentionally use only the ACTIVE list.
+    const sourceCount = (propertyView === "archived" ? archivedProperties : properties).length;
 
     return (
       <div className="workspace">
@@ -859,10 +942,46 @@ function WorkspaceApp() {
                       Manage, organize and update your property listings.
                     </p>
                   </div>
-                  {isOwner && <button className="primary-button" onClick={openAddForm}>
+                  {isOwner && propertyView === "active" && <button className="primary-button" onClick={openAddForm}>
                     + Add Property
                   </button>}
                 </div>
+
+                {isOwner && (
+                  <div className="property-view-tabs" role="tablist" aria-label="Property view">
+                    <button
+                      role="tab"
+                      aria-selected={propertyView === "active"}
+                      className={`view-tab ${propertyView === "active" ? "active" : ""}`}
+                      onClick={() => {
+                        setPropertyView("active");
+                        // Filters from the other tab would silently hide rows here; start clean.
+                        setSearchTerm("");
+                        setStatusFilter("ALL");
+                        setPropertyError("");
+                        setSuccessMessage("");
+                        void loadProperties();
+                      }}
+                    >
+                      Active properties
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={propertyView === "archived"}
+                      className={`view-tab ${propertyView === "archived" ? "active" : ""}`}
+                      onClick={() => {
+                        setPropertyView("archived");
+                        setSearchTerm("");
+                        setStatusFilter("ALL");
+                        setPropertyError("");
+                        setSuccessMessage("");
+                        void loadArchivedProperties();
+                      }}
+                    >
+                      Archived properties
+                    </button>
+                  </div>
+                )}
 
                 <div className="property-toolbar">
                   <input
@@ -885,7 +1004,11 @@ function WorkspaceApp() {
                   </select>
                   <button
                     className="secondary-button"
-                    onClick={() => void loadProperties()}
+                    onClick={() =>
+                      void (propertyView === "archived"
+                        ? loadArchivedProperties()
+                        : loadProperties())
+                    }
                     disabled={propertiesLoading}
                   >
                     ↻ Refresh
@@ -907,10 +1030,12 @@ function WorkspaceApp() {
                 <section className="property-panel">
                   <div className="property-panel-heading">
                     <div>
-                      <h2>All properties</h2>
+                      <h2>{propertyView === "archived" ? "Archived properties" : "All properties"}</h2>
                       <p>
                         {filteredProperties.length} listing
                         {filteredProperties.length === 1 ? "" : "s"} found
+                        {propertyView === "archived" &&
+                          " · hidden from your list and public website; restore to bring one back"}
                       </p>
                     </div>
                   </div>
@@ -924,16 +1049,20 @@ function WorkspaceApp() {
                     <div className="empty-state">
                       <div className="empty-icon">⌂</div>
                       <h3>
-                        {properties.length === 0
-                          ? "No properties added yet"
+                        {sourceCount === 0
+                          ? propertyView === "archived"
+                            ? "No archived properties"
+                            : "No properties added yet"
                           : "No matching properties"}
                       </h3>
                       <p>
-                        {properties.length === 0
-                          ? "Start building your portfolio by adding your first property."
+                        {sourceCount === 0
+                          ? propertyView === "archived"
+                            ? "Properties you archive appear here and can be restored."
+                            : "Start building your portfolio by adding your first property."
                           : "Try changing your search or status filter."}
                       </p>
-                      {isOwner && properties.length === 0 && (
+                      {isOwner && propertyView === "active" && sourceCount === 0 && (
                         <button className="primary-button" onClick={openAddForm}>
                           + Add your first property
                         </button>
@@ -989,9 +1118,26 @@ function WorkspaceApp() {
                                 >
                                   {property.status}
                                 </span>
+                                {property.deletedAt && (
+                                  <span className="archived-badge">Archived</span>
+                                )}
                               </td>
                               <td>
-                                {isOwner && <div className="table-actions">
+                                {isOwner && propertyView === "archived" && <div className="table-actions">
+                                  <button
+                                    className="action-button"
+                                    onClick={() => setDetailProperty(property)}
+                                  >
+                                    View details
+                                  </button>
+                                  <button
+                                    className="action-button"
+                                    onClick={() => void restoreProperty(property)}
+                                  >
+                                    Restore
+                                  </button>
+                                </div>}
+                                {isOwner && propertyView === "active" && <div className="table-actions">
                                   <button
                                     className="action-button"
                                     onClick={() => setDetailProperty(property)}
@@ -1012,9 +1158,9 @@ function WorkspaceApp() {
                                   </button>
                                   <button
                                     className="action-button delete-action"
-                                    onClick={() => void deleteProperty(property)}
+                                    onClick={() => void archiveProperty(property)}
                                   >
-                                    Delete
+                                    Archive
                                   </button>
                                 </div>}
                                 {!isOwner && <button className="action-button" onClick={() => setDetailProperty(property)}>View details</button>}
@@ -1139,7 +1285,7 @@ function WorkspaceApp() {
                   <div className="form-group"><label htmlFor="leadEmail">Email</label><input id="leadEmail" name="email" type="email" value={leadForm.email} onChange={handleLeadFormChange} maxLength={150} /></div>
                   <div className="form-group"><label htmlFor="leadPhone">Phone *</label><input id="leadPhone" name="phone" value={leadForm.phone} onChange={handleLeadFormChange} maxLength={20} required /></div>
                   <div className="form-group"><label htmlFor="leadSource">Source</label><select id="leadSource" name="source" value={leadForm.source} onChange={handleLeadFormChange}><option value="WEBSITE">Website</option><option value="PHONE">Phone</option><option value="WHATSAPP">WhatsApp</option><option value="INSTAGRAM">Instagram</option><option value="FACEBOOK">Facebook</option><option value="REFERRAL">Referral</option><option value="WALK_IN">Walk-in</option><option value="OTHER">Other</option></select></div>
-                  <div className="form-group"><label htmlFor="leadPropertyId">Interested property</label><select id="leadPropertyId" name="propertyId" value={leadForm.propertyId} onChange={handleLeadFormChange}><option value="">Not specified</option>{properties.map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}</select></div>
+                  <div className="form-group"><label htmlFor="leadPropertyId">Interested property</label><select id="leadPropertyId" name="propertyId" value={leadForm.propertyId} onChange={handleLeadFormChange}><option value="">Not specified</option>{properties.map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}{/* An archived property cannot be newly chosen, but the lead being edited may already point at one: keep it selectable so saving does not silently drop the association. */}{editingLeadId && leadForm.propertyId && !properties.some((property) => property.id === leadForm.propertyId) && <option value={leadForm.propertyId}>{leads.find((lead) => lead.id === editingLeadId)?.propertyMissing ? "Property no longer available (removed)" : (leads.find((lead) => lead.id === editingLeadId)?.propertyTitle || "Linked property") + " (archived)"}</option>}</select></div>
                 </div>
                 <div className="form-group"><label htmlFor="leadFollowUpAt">Follow-up date and time</label><input id="leadFollowUpAt" name="followUpAt" type="datetime-local" value={leadForm.followUpAt} onChange={handleLeadFormChange} /></div>
                 <div className="form-group"><label htmlFor="leadMessage">Enquiry / message</label><textarea id="leadMessage" name="message" value={leadForm.message} onChange={handleLeadFormChange} maxLength={2000} rows={4} /></div>
@@ -1156,12 +1302,12 @@ function WorkspaceApp() {
             <section className="property-modal detail-modal" role="dialog" aria-modal="true" aria-labelledby="property-detail-title">
               <div className="modal-heading"><div><p className="eyebrow">PROPERTY DETAILS</p><h2 id="property-detail-title">{detailProperty.title}</h2><p className="page-description">{detailProperty.city}{detailProperty.locality ? ` · ${detailProperty.locality}` : ""}</p></div><button className="modal-close" onClick={() => setDetailProperty(null)} aria-label="Close">×</button></div>
               <div className="detail-summary-grid">
-                <div><span>Price</span><strong>{formatPrice(detailProperty.price)}</strong></div><div><span>Status</span><strong><span className={`status-pill ${detailProperty.status.toLowerCase()}`}>{detailProperty.status}</span></strong></div>
+                <div><span>Price</span><strong>{formatPrice(detailProperty.price)}</strong></div><div><span>Status</span><strong><span className={`status-pill ${detailProperty.status.toLowerCase()}`}>{detailProperty.status}</span>{detailProperty.deletedAt && <span className="archived-badge">Archived</span>}</strong></div>
                 <div><span>Area</span><strong>{detailProperty.areaSqft.toLocaleString("en-IN")} sqft</strong></div><div><span>Configuration</span><strong>{detailProperty.bedrooms ?? 0} bed · {detailProperty.bathrooms ?? 0} bath</strong></div>
                 <div><span>Transaction</span><strong>{detailProperty.transactionType}</strong></div><div><span>Category</span><strong>{detailProperty.propertyCategory} · {detailProperty.propertyType}</strong></div>
               </div>
               <section className="detail-description"><h3>Description</h3><p>{detailProperty.description || "No description provided."}</p></section>
-              <div className="modal-actions"><button className="secondary-button" onClick={() => setDetailProperty(null)}>Close</button>{isOwner && <><button className="secondary-button" onClick={() => { setDetailProperty(null); setGalleryProperty(detailProperty); }}>Manage photos</button><button className="primary-button" onClick={() => { setDetailProperty(null); openEditForm(detailProperty); }}>Edit property</button></>}</div>
+              <div className="modal-actions"><button className="secondary-button" onClick={() => setDetailProperty(null)}>Close</button>{isOwner && !detailProperty.deletedAt && <><button className="secondary-button" onClick={() => { setDetailProperty(null); setGalleryProperty(detailProperty); }}>Manage photos</button><button className="primary-button" onClick={() => { setDetailProperty(null); openEditForm(detailProperty); }}>Edit property</button></>}</div>
             </section>
           </div>
         )}
@@ -1174,7 +1320,7 @@ function WorkspaceApp() {
                 <div className="lead-workflow-step"><span>Current status</span><strong><span className={`status-pill ${detailLead.status.toLowerCase()}`}>{detailLead.status.replaceAll("_", " ")}</span></strong></div>
                 <div className="lead-workflow-step"><span>Next follow-up</span><strong>{detailLead.followUpAt ? new Date(detailLead.followUpAt).toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short" }) : "Not scheduled"}</strong></div>
                 <div className="lead-workflow-step"><span>Source</span><strong>{detailLead.source || "Not specified"}</strong></div>
-                <div className="lead-workflow-step"><span>Interested property</span><strong>{properties.find((property) => property.id === detailLead.propertyId)?.title || "Not specified"}</strong></div>
+                <div className="lead-workflow-step"><span>Interested property</span><strong>{detailLead.propertyMissing ? "Property no longer available" : detailLead.propertyTitle || properties.find((property) => property.id === detailLead.propertyId)?.title || "Not specified"}{detailLead.propertyArchived && <span className="archived-badge">Archived</span>}{detailLead.propertyMissing && <span className="archived-badge">Removed</span>}</strong></div>
               </div>
               <section className="detail-description"><h3>Enquiry notes</h3><p>{detailLead.message || "No notes added yet."}</p></section>
               <div className="modal-actions"><button className="secondary-button" onClick={() => setDetailLead(null)}>Close</button>{isOwner && <button className="primary-button" onClick={() => { setDetailLead(null); openEditLeadForm(detailLead); }}>Update follow-up</button>}</div>

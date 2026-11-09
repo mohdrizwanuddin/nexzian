@@ -1134,3 +1134,40 @@ button:disabled {
     text-align: left;
   }
 }
+
+/* ---- Property archive (soft delete) ---------------------------------------------------- */
+
+/* Switch between the active portfolio and archived (restorable) properties. */
+.property-view-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.view-tab {
+  border: 1px solid #d9dee7;
+  background: #fff;
+  color: #526078;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-tab.active {
+  background: #101827;
+  border-color: #101827;
+  color: #fff;
+}
+
+/* Small marker shown next to a status pill / lead property when the property is archived. */
+.archived-badge {
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: 30px;
+  padding: 4px 9px;
+  font-size: 10px;
+  font-weight: bold;
+  background: #fdecea;
+  color: #b42318;
+}

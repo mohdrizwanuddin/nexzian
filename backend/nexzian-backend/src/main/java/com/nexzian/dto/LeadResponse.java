@@ -8,6 +8,39 @@ public class LeadResponse {
 
     private UUID id;
     private UUID propertyId;
+
+    // Read-only context about the linked property, resolved server-side so the UI can show the
+    // original title (and an "Archived" badge) even when the property is no longer in the
+    // active property list. Null when the lead has no property.
+    private String propertyTitle;
+    private Boolean propertyArchived;
+    // true = the lead has a propertyId but no such property exists for this agency any more
+    // (legacy hard delete); false = property found (active or archived); null = no property.
+    private Boolean propertyMissing;
+
+    public Boolean getPropertyMissing() {
+        return propertyMissing;
+    }
+
+    public void setPropertyMissing(Boolean propertyMissing) {
+        this.propertyMissing = propertyMissing;
+    }
+
+    public String getPropertyTitle() {
+        return propertyTitle;
+    }
+
+    public void setPropertyTitle(String propertyTitle) {
+        this.propertyTitle = propertyTitle;
+    }
+
+    public Boolean getPropertyArchived() {
+        return propertyArchived;
+    }
+
+    public void setPropertyArchived(Boolean propertyArchived) {
+        this.propertyArchived = propertyArchived;
+    }
     private String customerName;
     private String email;
     private String phone;

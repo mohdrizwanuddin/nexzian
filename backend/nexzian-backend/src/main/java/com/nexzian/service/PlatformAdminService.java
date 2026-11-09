@@ -32,8 +32,10 @@ public class PlatformAdminService {
             return new AdminAgencyResponse(tenant.getId(), tenant.getBusinessName(), tenant.getWebsiteSlug(),
                     tenant.getStatus(), tenant.getSubscriptionPlan(), tenant.getCity(),
                     owner == null ? null : owner.getFullName(), owner == null ? null : owner.getEmail(),
-                    propertyRepository.countByTenantId(tenant.getId()),
-                    propertyRepository.findAllByTenantIdAndStatus(tenant.getId(), "PUBLISHED").size(),
+                    // Archived properties are excluded from both counts: platform figures should
+                    // reflect what an agency actively manages / publicly shows.
+                    propertyRepository.countByTenantIdAndDeletedAtIsNull(tenant.getId()),
+                    propertyRepository.countByTenantIdAndStatusAndDeletedAtIsNull(tenant.getId(), "PUBLISHED"),
                     leadRepository.countByTenantId(tenant.getId()), userRepository.countByTenantId(tenant.getId()),
                     tenant.getCreatedAt());
         }).toList();

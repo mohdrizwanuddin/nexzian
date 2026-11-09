@@ -48,6 +48,7 @@ public class PropertyMapper {
         response.setStatus(property.getStatus());
         response.setCreatedAt(property.getCreatedAt());
         response.setUpdatedAt(property.getUpdatedAt());
+        response.setDeletedAt(property.getDeletedAt());
 
         return response;
     }

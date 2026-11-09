@@ -1,6 +1,7 @@
 package com.nexzian;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,6 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.nexzian.entity.Property;
 import com.nexzian.entity.PropertyImage;
 
 /**
@@ -160,37 +162,31 @@ class CrossTenantImageTests extends AuthorizationTestSupport {
         assertEquals(before, state());
     }
 
-    // ---- known defect (S6 finding M3), documented as the behaviour that SHOULD hold ---------------------
+    // ---- former defect (S6 finding M3), now resolved by archiving ------------------------------------
 
     /**
-     * KNOWN BUG - confirmed by the R1 test run: deleting a property that has images throws
-     * "Referential integrity constraint violation ... property_images ... FOREIGN KEY(property_id)"
-     * out of PropertyService.deleteProperty, i.e. an unhandled 500. This test states the invariant
-     * the fix must establish, whichever way it is resolved:
-     *   - 204: the property AND its image rows AND its files are all gone; or
-     *   - a clean 4xx (e.g. 409): the property, its images and its files are all still there.
-     * It must never be a 5xx and never leave orphaned image rows/files.
-     * Disabled so the suite stays green until R3 fixes the defect; then remove @Disabled.
+     * Regression for S6 finding M3. Before R3, DELETE /properties/{id} on a property that had
+     * images tried to physically delete the row and failed with a foreign-key 500. DELETE now
+     * ARCHIVES, so it must succeed (204) for a property with images AND leave every image row and
+     * every image file exactly where it was - nothing is lost and nothing is orphaned, because the
+     * property can be restored later. Deleting rows or files here would silently destroy history.
      */
-    @org.junit.jupiter.api.Disabled("Known bug M3 (R3): deleting a property that has images fails with a foreign-key 500")
     @Test
-    void deletingOwnPropertyThatHasImagesNeverFailsWithAServerErrorOrLeavesOrphans() throws Exception {
+    void archivingOwnPropertyThatHasImagesSucceedsAndKeepsEveryImageRowAndFile() throws Exception {
         State before = state();
+        String imageBefore = imageSnapshot(imageA);
 
-        int status = delete("/api/v1/properties/{id}", ownerAToken, propertyA.getId())
-                .andReturn().getResponse().getStatus();
+        delete("/api/v1/properties/{id}", ownerAToken, propertyA.getId())
+                .andExpect(status().isNoContent());
 
-        if (status == 204) {
-            assertTrue(propertyRepository.findById(propertyA.getId()).isEmpty());
-            assertTrue(imageRepository.findById(imageA).isEmpty(), "images must be removed with the property");
-            assertEquals(before.files() - 1, state().files(), "the image file must be removed too");
-        } else {
-            assertTrue(status >= 400 && status < 500, "expected 204 or a clean 4xx but got " + status);
-            assertTrue(propertyRepository.findById(propertyA.getId()).isPresent());
-            assertTrue(imageRepository.findById(imageA).isPresent());
-            assertEquals(before, state(), "a refused delete must change nothing");
-        }
+        Property archived = propertyRepository.findById(propertyA.getId()).orElseThrow();
+        assertNotNull(archived.getDeletedAt(), "the property must be flagged archived, not removed");
+        assertTrue(imageRepository.findById(imageA).isPresent(), "image rows must survive archiving");
+        assertEquals(imageBefore, imageSnapshot(imageA), "the image record and file must be unchanged");
+        // Row counts and the number of files on disk are identical: nothing was deleted anywhere.
+        assertEquals(before, state(), "archiving must not delete any property, image row or file");
     }
+
 
     // ---- file bytes never reach the wrong caller --------------------------------------------------
 

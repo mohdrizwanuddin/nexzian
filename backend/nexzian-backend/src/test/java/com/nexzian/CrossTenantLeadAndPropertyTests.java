@@ -4,12 +4,15 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+
+import com.nexzian.entity.Property;
 
 /**
  * Agency A's owner against agency B's leads and properties. Every rejected request must
@@ -181,12 +184,16 @@ class CrossTenantLeadAndPropertyTests extends AuthorizationTestSupport {
     }
 
     @Test
-    void ownerCanDeleteOwnPropertyWithoutAffectingAnotherTenant() throws Exception {
+    void ownerCanArchiveOwnPropertyWithoutAffectingAnotherTenant() throws Exception {
         String bBefore = propertySnapshot(propertyB.getId());
 
         delete("/api/v1/properties/{id}", ownerAToken, propertyA.getId()).andExpect(status().isNoContent());
 
-        assertTrue(propertyRepository.findById(propertyA.getId()).isEmpty());
+        // DELETE archives (soft delete): the row stays, flagged archived and attributed to the owner.
+        Property archived = propertyRepository.findById(propertyA.getId()).orElseThrow();
+        assertNotNull(archived.getDeletedAt());
+        assertEquals(ownerA.getId(), archived.getDeletedBy());
+        // The other tenant's property must be byte-for-byte untouched.
         assertEquals(bBefore, propertySnapshot(propertyB.getId()));
     }
 }

@@ -178,6 +178,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/properties/{id}").hasRole("OWNER")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/properties/{id}").hasRole("OWNER")
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/properties/{id}").hasRole("OWNER")
+                // Archive lifecycle: DELETE above now ARCHIVES (soft delete). Viewing the archived
+                // list and restoring are equally owner-only - they expose / re-activate agency
+                // business data - and, like every rule here, exact method + path.
+                .requestMatchers(HttpMethod.GET, "/api/v1/properties/archived").hasRole("OWNER")
+                .requestMatchers(HttpMethod.POST, "/api/v1/properties/{id}/restore").hasRole("OWNER")
                 //   Property images
                 .requestMatchers(HttpMethod.GET, "/api/v1/properties/{propertyId}/images").hasRole("OWNER")
                 .requestMatchers(HttpMethod.POST, "/api/v1/properties/{propertyId}/images").hasRole("OWNER")

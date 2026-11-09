@@ -5,6 +5,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 public class PropertyResponse {
 
     private UUID id;
@@ -28,6 +30,20 @@ public class PropertyResponse {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // Set only for archived properties (owner-facing views). NON_NULL keeps the key out of the
+    // JSON for active properties, so the shape of every existing response is unchanged.
+    // deletedBy is intentionally NOT exposed: the UI only needs to know "archived, and when".
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private LocalDateTime deletedAt;
+
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
 
     public UUID getId() {
         return id;

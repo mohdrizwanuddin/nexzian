@@ -13,8 +13,16 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.DynamicUpdate;
+
 @Entity
 @Table(name = "properties")
+// Write only the columns that actually changed. Without this, an edit that loaded the property
+// BEFORE a concurrent archive/restore would write its stale deleted_at / deleted_by back and
+// silently undo that transition (a hidden listing could reappear publicly). With it, an edit
+// never touches the archive columns unless they themselves changed, and those only change via
+// the atomic updates in PropertyRepository. Needs no schema change.
+@DynamicUpdate
 public class Property {
 
     @Id
@@ -63,6 +71,20 @@ public class Property {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // ---- Soft delete (archive) -------------------------------------------------------------
+    // A property is "archived" when deleted_at is set. This is deliberately separate from
+    // `status`: SOLD / RENTED / AVAILABLE / DRAFT are business states an archived property can
+    // still be in, and status is free text, so it cannot be trusted as a safety flag. Both
+    // columns are nullable, so existing rows read as active without any backfill, and
+    // hibernate ddl-auto=update can add them with a plain ALTER TABLE.
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    // The user who archived the property (audit trail). Plain UUID, no foreign key, matching
+    // how tenant_id is stored on this table, so archiving never depends on the user row.
+    @Column(name = "deleted_by")
+    private UUID deletedBy;
 
     @PrePersist
     protected void onCreate() {
@@ -191,4 +213,21 @@ public class Property {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
+
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public UUID getDeletedBy() {
+        return deletedBy;
+    }
+
+    public boolean isArchived() {
+        return deletedAt != null;
+    }
+
+    // Deliberately NO setters / archive() / restore() for deletedAt and deletedBy: the archive
+    // state may only change through the atomic conditional updates in PropertyRepository
+    // (archiveIfActive / restoreIfArchived), which keep the two fields paired and make
+    // concurrent requests safe. An entity-level setter would reintroduce a read-then-save race.
 }
