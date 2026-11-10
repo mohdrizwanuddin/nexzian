@@ -78,7 +78,13 @@ SELECT c.relname AS table_name, n.nspname AS schema_name
  WHERE c.oid IN (to_regclass('users'), to_regclass('tenants'));
 
 -- Informational: the database locale. The rewrite below does not depend on it (see SAFETY).
-SHOW lc_ctype;
+-- It is read from the pg_database CATALOG on purpose. The run-time parameter lc_ctype (and therefore
+-- the statement "SHOW lc_ctype") does not exist on PostgreSQL 18: the rehearsal on 18.6 failed with
+-- 'unrecognized configuration parameter "lc_ctype"'. The catalog columns work on every PostgreSQL
+-- version and describe the locale this database was created with.
+SELECT datcollate, datctype
+FROM pg_database
+WHERE datname = current_database();
 
 -- The UNIQUE constraints the guarantee relies on (names are Hibernate-generated). Both tables
 -- must show one row each for the column "email".

@@ -54,6 +54,11 @@ use the connecting role's default `search_path` (normally `public`).
   accepted.
 * **Encoding:** the database should be UTF8 (STEP 0 shows `server_encoding`). The self-test probe in
   STEP 3c uses a non-ASCII character and fails safely (nothing changes) on a non-UTF8 database.
+* **Locale (informational):** STEP 0 also shows the database's `datcollate` and `datctype`, read from
+  the `pg_database` catalog. The migration does not depend on them (the rewrite uses `translate()`,
+  not `lower()`). The catalog is used deliberately: the older `SHOW lc_ctype` statement fails on
+  PostgreSQL 18 with `unrecognized configuration parameter "lc_ctype"` (found when the script was
+  rehearsed on 18.6), because that run-time parameter does not exist there.
 
 ## Procedure
 

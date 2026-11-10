@@ -176,8 +176,27 @@ class MigrationScriptConsistencyTests {
     }
 
     @Test
-    void thePreChecksCoverWhitespaceNonAsciiLocaleAndSchema() {
-        assertTrue(activeSql.contains("SHOW lc_ctype;"), "LC_CTYPE must be displayed");
+    void theLocaleIsReadFromTheCatalogBecauseShowLcCtypeFailsOnPostgreSql18() {
+        // Regression for a defect found by rehearsing the script on PostgreSQL 18.6: the statement
+        // "SHOW lc_ctype" raised 'unrecognized configuration parameter "lc_ctype"' and (with
+        // ON_ERROR_STOP) would have stopped the run in STEP 0. That run-time parameter is gone on
+        // 18; the pg_database catalog columns work on every version. H2 and this static test cannot
+        // execute SQL, so the test pins the TEXT: the catalog query must be present and the removed
+        // parameter must never come back as an executable statement.
+        String normalized = activeSql.replaceAll("\\s+", " ");
+        assertTrue(normalized.contains(
+                "SELECT datcollate, datctype FROM pg_database WHERE datname = current_database();"),
+                "STEP 0 must display the locale from the pg_database catalog");
+        assertFalse(Pattern.compile("(?i)\\bSHOW\\s+lc_(ctype|collate)\\b").matcher(activeSql).find(),
+                "SHOW lc_ctype is not valid on PostgreSQL 18 (and lc_collate is avoided for the same reason): "
+                        + "the locale must come from the catalog");
+        // The reason is documented next to the statement and in the runbook, so nobody 'simplifies' it back.
+        assertTrue(sql.contains("PostgreSQL 18") && sql.contains("unrecognized configuration parameter"));
+        assertTrue(runbook.contains("datcollate") && runbook.contains("PostgreSQL 18"));
+    }
+
+    @Test
+    void thePreChecksCoverWhitespaceNonAsciiAndSchema() {
         assertTrue(activeSql.contains("current_setting('search_path')") && activeSql.contains("current_schema()"),
                 "the resolved schema must be displayed rather than assumed");
         assertTrue(activeSql.contains("email !~ '^[!-~]+$'"), "policy violations must be detected before any change");
